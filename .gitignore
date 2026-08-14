@@ -5,3 +5,8 @@ __pycache__/
 .streamlit/secrets.toml
 .env
 .env.*
+.DS_Store
+*.log
+logs-*.txt
+mortgage-calc-screenshot.png
+reports/
