@@ -81,6 +81,28 @@ def test_zero_extra_payment_removes_savings_metrics(app_page: Page):
     assert "Time Saved" not in page_text
 
 
+def test_multiple_one_time_payments_can_be_added_and_removed(app_page: Page):
+    app_page.get_by_text("One-time payments", exact=True).click()
+    first_payment = app_page.get_by_role("spinbutton", name="Payment 1 amount")
+    first_payment.fill("5500")
+
+    app_page.get_by_role("button", name="Add another payment").click()
+    _wait(app_page)
+
+    second_payment = app_page.get_by_role("spinbutton", name="Payment 2 amount")
+    expect(second_payment).to_be_visible()
+    assert first_payment.input_value() == "5500"
+
+    second_payment.fill("2500")
+    app_page.get_by_role("button", name="Calculate payment").click()
+    _wait(app_page)
+    assert "Interest saved" in app_page.locator("body").text_content()
+
+    app_page.get_by_role("button", name="Remove").nth(1).click()
+    _wait(app_page)
+    expect(app_page.get_by_role("spinbutton", name="Payment 2 amount")).to_have_count(0)
+
+
 # ── 6. Chart ─────────────────────────────────────────────────────────────────
 
 def test_balance_chart_renders(app_page: Page):

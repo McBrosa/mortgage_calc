@@ -17,6 +17,37 @@ from mortgage_calculator import (
 )
 
 
+ONE_TIME_PAYMENT_IDS_KEY = "one_time_payment_ids"
+ONE_TIME_PAYMENT_NEXT_ID_KEY = "one_time_payment_next_id"
+MAX_ONE_TIME_PAYMENTS = 12
+
+
+def initialize_one_time_payment_rows() -> list[int]:
+    """Create the first stable one-time-payment row for this browser session."""
+    if ONE_TIME_PAYMENT_IDS_KEY not in st.session_state:
+        st.session_state[ONE_TIME_PAYMENT_IDS_KEY] = [0]
+        st.session_state[ONE_TIME_PAYMENT_NEXT_ID_KEY] = 1
+    return st.session_state[ONE_TIME_PAYMENT_IDS_KEY]
+
+
+def add_one_time_payment_row() -> None:
+    """Append one stable payment row without disturbing existing widget values."""
+    payment_ids = st.session_state[ONE_TIME_PAYMENT_IDS_KEY]
+    if len(payment_ids) >= MAX_ONE_TIME_PAYMENTS:
+        return
+    next_id = st.session_state[ONE_TIME_PAYMENT_NEXT_ID_KEY]
+    st.session_state[ONE_TIME_PAYMENT_IDS_KEY] = [*payment_ids, next_id]
+    st.session_state[ONE_TIME_PAYMENT_NEXT_ID_KEY] = next_id + 1
+
+
+def remove_one_time_payment_row(payment_id: int) -> None:
+    """Remove a payment row while always leaving one editable row available."""
+    payment_ids = st.session_state[ONE_TIME_PAYMENT_IDS_KEY]
+    remaining_ids = [existing_id for existing_id in payment_ids if existing_id != payment_id]
+    if remaining_ids:
+        st.session_state[ONE_TIME_PAYMENT_IDS_KEY] = remaining_ids
+
+
 @st.cache_data(max_entries=128, show_spinner=False)
 def calculate_results(
     loan_details: LoanDetails,
@@ -176,10 +207,55 @@ def apply_styles() -> None:
             font-weight: 750;
             touch-action: manipulation;
         }
-        [data-testid="stFormSubmitButton"] button {
+        [data-testid="stFormSubmitButton"] button[kind="primary"] {
             background: linear-gradient(135deg, var(--teal), var(--teal-dark));
             border: 0;
             box-shadow: 0 0.55rem 1.25rem rgba(11, 122, 112, 0.18);
+        }
+        .one-time-row-title {
+            align-items: center;
+            color: var(--muted);
+            display: flex;
+            font-size: 0.72rem;
+            font-weight: 800;
+            gap: 0.5rem;
+            letter-spacing: 0.08em;
+            margin: 0.35rem 0 0.15rem;
+            text-transform: uppercase;
+        }
+        .one-time-row-title::after {
+            background: var(--line);
+            content: "";
+            flex: 1;
+            height: 1px;
+        }
+        .st-key-add_one_time_payment button {
+            background: var(--teal-soft);
+            border: 1px dashed #9acfc4;
+            color: var(--teal-dark);
+            font-weight: 800;
+            margin-top: 0.2rem;
+        }
+        [class*="st-key-remove_one_time_payment_"] button {
+            color: #8a4c4c;
+            justify-content: center;
+            margin-top: 1.65rem;
+            margin-left: auto;
+            min-width: 2.75rem;
+            padding: 0;
+            width: 2.75rem;
+        }
+        [class*="st-key-remove_one_time_payment_"] [data-testid="stFormSubmitButton"] {
+            display: flex;
+            justify-content: flex-end;
+        }
+        [class*="st-key-remove_one_time_payment_"] button p {
+            font-size: 0;
+            line-height: 0;
+            margin: 0;
+        }
+        [class*="st-key-remove_one_time_payment_"] [data-testid="stIconMaterial"] {
+            font-size: 1.15rem;
         }
         [data-testid="stExpander"] summary {
             background: rgba(248, 250, 251, 0.78);
@@ -406,6 +482,7 @@ def apply_styles() -> None:
             .hero-plan-badge { font-size: 0.66rem; }
             .payment-hero-facts { margin-top: 0.85rem; padding-top: 0.75rem; }
             .strategy-callout { margin-bottom: 0.6rem; }
+            [class*="st-key-remove_one_time_payment_"] button { margin-top: 0; }
             [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 1.15rem !important; }
             .chart-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
             .chart-legend-note { white-space: normal; }
@@ -419,6 +496,9 @@ def apply_styles() -> None:
 
 def loan_form() -> tuple[LoanDetails, tuple[ExtraPayment, ...]]:
     """Render one mobile-friendly form and return normalized calculator inputs."""
+    payment_ids = initialize_one_time_payment_rows()
+    one_time_payment_inputs: list[tuple[int, float, date]] = []
+
     with st.form("mortgage_inputs", border=True):
         st.subheader("Loan details")
         amount_col, rate_col = st.columns(2, gap="medium")
@@ -478,25 +558,61 @@ def loan_form() -> tuple[LoanDetails, tuple[ExtraPayment, ...]]:
                 help="Models 26 half-payments yearly, equal to one extra monthly payment per year.",
             )
 
-        with st.expander("One-time payment", expanded=False):
-            one_time_col, one_time_date_col = st.columns(2, gap="medium")
-            with one_time_col:
-                one_time_amount = st.number_input(
-                    "One-time principal payment",
-                    min_value=0.0,
-                    value=0.0,
-                    step=500.0,
-                    format="%.0f",
+        with st.expander("One-time payments", expanded=len(payment_ids) > 1):
+            for payment_number, payment_id in enumerate(payment_ids, start=1):
+                st.markdown(
+                    f'<div class="one-time-row-title">Payment {payment_number}</div>',
+                    unsafe_allow_html=True,
                 )
-            with one_time_date_col:
-                one_time_date = st.date_input(
-                    "Payment month",
-                    value=date.today().replace(day=1),
-                    min_value=date(2020, 1, 1),
-                    max_value=date(2050, 12, 1),
-                    format="MM/DD/YYYY",
-                    key="one_time_date",
+                amount_col, payment_date_col, remove_col = st.columns(
+                    [1, 1, 0.52],
+                    gap="small",
+                    vertical_alignment="bottom",
                 )
+                with amount_col:
+                    one_time_amount = st.number_input(
+                        f"Payment {payment_number} amount",
+                        min_value=0.0,
+                        value=0.0,
+                        step=500.0,
+                        format="%.0f",
+                        key=f"one_time_amount_{payment_id}",
+                    )
+                with payment_date_col:
+                    one_time_date = st.date_input(
+                        f"Payment {payment_number} month",
+                        value=date.today().replace(day=1),
+                        min_value=date(2020, 1, 1),
+                        max_value=date(2050, 12, 1),
+                        format="MM/DD/YYYY",
+                        key=f"one_time_date_{payment_id}",
+                    )
+                with remove_col:
+                    if len(payment_ids) > 1:
+                        st.form_submit_button(
+                            "Remove",
+                            key=f"remove_one_time_payment_{payment_id}",
+                            type="tertiary",
+                            icon=":material/delete:",
+                            help=f"Remove payment {payment_number}",
+                            on_click=remove_one_time_payment_row,
+                            args=(payment_id,),
+                            width="stretch",
+                        )
+                one_time_payment_inputs.append(
+                    (payment_number, one_time_amount, one_time_date)
+                )
+
+            st.form_submit_button(
+                "Add another payment",
+                key="add_one_time_payment",
+                type="secondary",
+                icon=":material/add:",
+                disabled=len(payment_ids) >= MAX_ONE_TIME_PAYMENTS,
+                help=f"Add up to {MAX_ONE_TIME_PAYMENTS} one-time payments.",
+                on_click=add_one_time_payment_row,
+                width="stretch",
+            )
 
         with st.expander("Taxes, insurance & HOA", expanded=False):
             tax_col, insurance_col = st.columns(2, gap="medium")
@@ -559,17 +675,31 @@ def loan_form() -> tuple[LoanDetails, tuple[ExtraPayment, ...]]:
     if use_biweekly:
         monthly_pi = MortgageCalculator(loan_details).calculate_monthly_payment()
         payments.append(ExtraPayment(ExtraPaymentType.BIWEEKLY, monthly_pi))
-    if one_time_amount > 0:
-        normalized_one_time = one_time_date.replace(day=1)
-        if normalized_one_time < start_date.replace(day=1):
-            st.warning("One-time payment must be on or after first payment month; it was not applied.")
-        else:
-            payments.append(
-                ExtraPayment(
-                    ExtraPaymentType.ONE_TIME,
-                    one_time_amount,
-                    datetime.combine(normalized_one_time, datetime.min.time()),
+    invalid_one_time_payments: list[int] = []
+    for payment_number, one_time_amount, one_time_date in one_time_payment_inputs:
+        if one_time_amount > 0:
+            normalized_one_time = one_time_date.replace(day=1)
+            if normalized_one_time < start_date.replace(day=1):
+                invalid_one_time_payments.append(payment_number)
+            else:
+                payments.append(
+                    ExtraPayment(
+                        ExtraPaymentType.ONE_TIME,
+                        one_time_amount,
+                        datetime.combine(normalized_one_time, datetime.min.time()),
+                    )
                 )
+    if invalid_one_time_payments:
+        payment_labels = ", ".join(str(number) for number in invalid_one_time_payments)
+        if len(invalid_one_time_payments) == 1:
+            st.warning(
+                f"One-time payment {payment_labels} must be on or after the first payment "
+                "month; it was not applied."
+            )
+        else:
+            st.warning(
+                f"One-time payments {payment_labels} must be on or after the first payment "
+                "month; they were not applied."
             )
 
     return loan_details, tuple(payments)
