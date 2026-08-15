@@ -123,6 +123,12 @@ def test_mobile_layout_has_no_horizontal_page_scroll(app_page: Page):
     expect(submit).to_be_visible()
     assert submit.bounding_box()["height"] >= 44
 
+    estimate = app_page.locator(".section-eyebrow", has_text="Your estimate")
+    loan_details = app_page.get_by_role("heading", name="Loan details")
+    expect(estimate).to_be_visible()
+    expect(loan_details).to_be_visible()
+    assert estimate.bounding_box()["y"] < loan_details.bounding_box()["y"]
+
     widths = app_page.evaluate(
         "() => ({viewport: window.innerWidth, document: document.documentElement.scrollWidth})"
     )

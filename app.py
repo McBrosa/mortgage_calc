@@ -45,113 +45,370 @@ def calculate_results(
 
 
 def apply_styles() -> None:
-    """Add focused responsive polish while retaining native Streamlit widgets."""
+    """Apply the responsive dashboard visual system."""
     st.markdown(
         """
         <style>
+        :root {
+            --ink: #122033;
+            --muted: #607084;
+            --line: #e2e8ee;
+            --canvas: #f4f7f8;
+            --card: #ffffff;
+            --teal: #0b7a70;
+            --teal-dark: #075e57;
+            --teal-soft: #e7f5f2;
+            --mint: #9fe3cf;
+        }
+        .stApp {
+            background:
+                radial-gradient(circle at 7% 2%, rgba(159, 227, 207, 0.20), transparent 22rem),
+                radial-gradient(circle at 94% 7%, rgba(177, 211, 231, 0.20), transparent 26rem),
+                var(--canvas);
+            color: var(--ink);
+        }
+        header[data-testid="stHeader"] { background: transparent; }
         .stMainBlockContainer {
-            max-width: 72rem;
-            padding-top: 1.35rem;
+            max-width: 84rem;
+            padding-top: 2.25rem;
             padding-bottom: max(3rem, env(safe-area-inset-bottom));
         }
         h1 {
-            letter-spacing: -0.035em;
-            line-height: 1.08 !important;
-            margin-bottom: 0.15rem !important;
+            color: var(--ink);
+            font-size: clamp(2.15rem, 4vw, 3.45rem) !important;
+            letter-spacing: -0.052em;
+            line-height: 1.01 !important;
+            margin: 0 0 0.35rem !important;
         }
-        h2, h3 { letter-spacing: -0.018em; }
+        h2, h3 {
+            color: var(--ink);
+            letter-spacing: -0.028em;
+        }
+        .app-header {
+            align-items: flex-end;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+            margin-bottom: 1.65rem;
+        }
+        .app-heading { max-width: 47rem; }
         .app-kicker {
-            color: #0f766e;
-            font-size: 0.78rem;
+            align-items: center;
+            color: var(--teal);
+            display: flex;
+            font-size: 0.73rem;
             font-weight: 800;
-            letter-spacing: 0.1em;
-            margin-bottom: 0.25rem;
+            gap: 0.45rem;
+            letter-spacing: 0.115em;
+            margin-bottom: 0.55rem;
             text-transform: uppercase;
         }
+        .app-kicker::before {
+            background: var(--teal);
+            border-radius: 999px;
+            content: "";
+            height: 0.5rem;
+            box-shadow: 0 0 0 0.27rem rgba(11, 122, 112, 0.12);
+            width: 0.5rem;
+        }
         .app-intro {
-            color: #475569;
-            font-size: 1rem;
-            margin: 0 0 1.2rem;
+            color: var(--muted);
+            font-size: 1.04rem;
+            line-height: 1.65;
+            margin: 0;
             max-width: 44rem;
         }
+        .header-note {
+            align-items: center;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(226, 232, 238, 0.92);
+            border-radius: 999px;
+            color: #425568;
+            display: flex;
+            flex: 0 0 auto;
+            font-size: 0.78rem;
+            font-weight: 700;
+            gap: 0.45rem;
+            margin-bottom: 0.25rem;
+            padding: 0.62rem 0.85rem;
+        }
+        .header-note-icon {
+            background: var(--teal-soft);
+            border-radius: 999px;
+            color: var(--teal);
+            display: inline-grid;
+            height: 1.35rem;
+            place-items: center;
+            width: 1.35rem;
+        }
+        .workspace-left-marker,
+        .results-anchor { display: none; }
         [data-testid="stForm"] {
-            background: #ffffff;
-            border: 1px solid #dbe3ea;
-            border-radius: 1rem;
-            box-shadow: 0 0.4rem 1.4rem rgba(15, 23, 42, 0.055);
-            padding: 1.15rem 1.2rem 1.25rem;
+            background: rgba(255, 255, 255, 0.93);
+            border: 1px solid var(--line);
+            border-radius: 1.4rem;
+            box-shadow: 0 1.1rem 3rem rgba(18, 32, 51, 0.07);
+            padding: 1.2rem 1.25rem 1.3rem;
+        }
+        [data-testid="stForm"] h3 {
+            font-size: 1.08rem;
+            margin-top: 0.3rem;
         }
         [data-testid="stNumberInput"] input,
         [data-testid="stDateInput"] input,
         [data-testid="stSelectbox"] > div > div {
+            background: #f8fafb;
+            border-color: #d9e1e7;
+            border-radius: 0.7rem;
             min-height: 44px;
-            font-size: 1rem;
+            font-size: 0.96rem;
+        }
+        [data-testid="stNumberInput"] input:focus,
+        [data-testid="stDateInput"] input:focus {
+            border-color: var(--teal);
+            box-shadow: 0 0 0 0.18rem rgba(11, 122, 112, 0.12);
         }
         .stButton button,
         .stDownloadButton button,
         [data-testid="stFormSubmitButton"] button {
+            border-radius: 0.75rem;
             min-height: 48px;
             font-weight: 750;
             touch-action: manipulation;
         }
+        [data-testid="stFormSubmitButton"] button {
+            background: linear-gradient(135deg, var(--teal), var(--teal-dark));
+            border: 0;
+            box-shadow: 0 0.55rem 1.25rem rgba(11, 122, 112, 0.18);
+        }
         [data-testid="stExpander"] summary {
+            background: rgba(248, 250, 251, 0.78);
             min-height: 48px;
         }
         [data-testid="stMetric"] {
-            background: #ffffff;
-            border: 1px solid #dbe3ea;
-            border-radius: 0.85rem;
-            padding: 0.8rem 0.9rem;
+            background: rgba(255, 255, 255, 0.94);
+            border: 1px solid var(--line);
+            border-radius: 1rem;
+            box-shadow: 0 0.55rem 1.6rem rgba(18, 32, 51, 0.045);
+            min-height: 7.1rem;
+            padding: 0.9rem 1rem;
         }
-        [data-testid="stMetricLabel"] p { color: #475569; }
+        [data-testid="stMetricLabel"] p {
+            color: var(--muted);
+            font-size: 0.78rem;
+            font-weight: 700;
+        }
         [data-testid="stMetricValue"] {
-            color: #0f172a;
-            font-size: 1.5rem;
-            font-weight: 780;
+            color: var(--ink);
+            font-size: 1.42rem;
+            font-weight: 800;
+        }
+        .section-eyebrow {
+            color: var(--teal);
+            font-size: 0.72rem;
+            font-weight: 850;
+            letter-spacing: 0.105em;
+            margin: 0.2rem 0 0.55rem;
+            text-transform: uppercase;
         }
         .payment-hero {
-            background: linear-gradient(135deg, #0f766e, #115e59);
-            border-radius: 1rem;
+            background:
+                radial-gradient(circle at 90% 5%, rgba(159, 227, 207, 0.28), transparent 12rem),
+                linear-gradient(145deg, #0c8176, #075b55);
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            border-radius: 1.4rem;
             color: white;
-            margin: 0.25rem 0 1rem;
-            padding: 1.15rem 1.25rem;
-            box-shadow: 0 0.55rem 1.5rem rgba(15, 118, 110, 0.18);
+            margin: 0 0 0.8rem;
+            overflow: hidden;
+            padding: 1.25rem 1.35rem 1.15rem;
+            position: relative;
+            box-shadow: 0 1.15rem 2.8rem rgba(7, 94, 87, 0.20);
+        }
+        .payment-hero-top {
+            align-items: flex-start;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
         }
         .payment-hero-label {
-            font-size: 0.85rem;
-            font-weight: 650;
-            opacity: 0.88;
+            font-size: 0.78rem;
+            font-weight: 750;
+            letter-spacing: 0.015em;
+            opacity: 0.86;
         }
         .payment-hero-value {
-            font-size: clamp(2rem, 8vw, 3rem);
-            font-weight: 820;
-            letter-spacing: -0.04em;
-            line-height: 1.08;
-            margin: 0.2rem 0;
+            font-size: clamp(2.4rem, 5vw, 3.35rem);
+            font-weight: 850;
+            letter-spacing: -0.055em;
+            line-height: 1;
+            margin: 0.35rem 0 0;
         }
-        .payment-hero-note {
-            font-size: 0.82rem;
-            opacity: 0.82;
+        .payment-hero-value span {
+            font-size: 0.9rem;
+            font-weight: 700;
+            letter-spacing: 0;
+            margin-left: 0.3rem;
+            opacity: 0.74;
+        }
+        .hero-plan-badge {
+            background: rgba(255, 255, 255, 0.13);
+            border: 1px solid rgba(255, 255, 255, 0.16);
+            border-radius: 999px;
+            font-size: 0.73rem;
+            font-weight: 750;
+            padding: 0.48rem 0.7rem;
+            white-space: nowrap;
+        }
+        .payment-hero-facts {
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
+            display: grid;
+            gap: 0.5rem;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            margin-top: 1.1rem;
+            padding-top: 0.9rem;
+        }
+        .hero-fact-label {
+            display: block;
+            font-size: 0.68rem;
+            opacity: 0.65;
+        }
+        .hero-fact-value {
+            display: block;
+            font-size: 0.84rem;
+            font-weight: 780;
+            margin-top: 0.18rem;
+        }
+        .strategy-callout {
+            align-items: center;
+            background: linear-gradient(135deg, #e9f8f3, #f5fbf9);
+            border: 1px solid #cdebe2;
+            border-radius: 1rem;
+            color: #31564f;
+            display: flex;
+            gap: 0.8rem;
+            margin: 0.2rem 0 0.8rem;
+            padding: 0.85rem 1rem;
+        }
+        .strategy-callout-icon {
+            background: #d3f0e7;
+            border-radius: 0.75rem;
+            color: var(--teal);
+            display: grid;
+            flex: 0 0 2.25rem;
+            font-size: 1rem;
+            font-weight: 900;
+            height: 2.25rem;
+            place-items: center;
+        }
+        .strategy-callout strong {
+            color: #163f38;
+            display: block;
+            font-size: 0.85rem;
+        }
+        .strategy-callout span {
+            display: block;
+            font-size: 0.76rem;
+            line-height: 1.4;
+            margin-top: 0.1rem;
+        }
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background: rgba(255, 255, 255, 0.90);
+            border-color: var(--line) !important;
+            border-radius: 1.4rem !important;
+            box-shadow: 0 0.85rem 2.4rem rgba(18, 32, 51, 0.055);
+        }
+        .chart-header {
+            align-items: flex-end;
+            display: flex;
+            gap: 1rem;
+            justify-content: space-between;
+            margin-bottom: -0.3rem;
+        }
+        .chart-title {
+            color: var(--ink);
+            font-size: 1.35rem;
+            font-weight: 820;
+            letter-spacing: -0.025em;
+        }
+        .chart-subtitle {
+            color: var(--muted);
+            font-size: 0.78rem;
+            margin-top: 0.15rem;
+        }
+        .chart-legend-note {
+            color: var(--muted);
+            font-size: 0.72rem;
+            white-space: nowrap;
         }
         div[data-testid="stPlotlyChart"] { overflow: hidden; }
 
-        @media (max-width: 640px) {
-            .stMainBlockContainer {
-                padding-left: 0.85rem;
-                padding-right: 0.85rem;
-                padding-top: 0.75rem;
+        @media (min-width: 769px) {
+            div[data-testid="stHorizontalBlock"]:has(.workspace-left-marker):has(.results-anchor)
+            > div[data-testid="stColumn"]:nth-child(2) {
+                align-self: flex-start;
+                position: sticky;
+                top: 1rem;
             }
-            h1 { font-size: 2rem !important; }
+        }
+
+        @media (max-width: 768px) {
+            .stMainBlockContainer {
+                padding-left: 0.8rem;
+                padding-right: 0.8rem;
+                padding-top: 0.85rem;
+            }
+            .app-header { margin-bottom: 1rem; }
+            .header-note { display: none; }
+            h1 { font-size: 2.05rem !important; }
             h2 { font-size: 1.4rem !important; }
             h3 { font-size: 1.1rem !important; }
-            .app-intro { font-size: 0.94rem; margin-bottom: 0.9rem; }
-            [data-testid="stForm"] {
-                border-radius: 0.85rem;
-                padding: 0.85rem 0.8rem 1rem;
+            .app-intro { font-size: 0.92rem; line-height: 1.55; }
+            div[data-testid="stHorizontalBlock"]:has(.workspace-left-marker):has(.results-anchor) {
+                flex-direction: column !important;
             }
-            [data-testid="stMetric"] { padding: 0.7rem 0.8rem; }
-            [data-testid="stMetricValue"] { font-size: 1.3rem; }
-            .payment-hero { padding: 1rem; }
+            div[data-testid="stHorizontalBlock"]:has(.workspace-left-marker):has(.results-anchor)
+            > div[data-testid="stColumn"]:nth-child(2) {
+                order: -1;
+            }
+            [data-testid="stForm"] {
+                border-radius: 1.15rem;
+                padding: 0.9rem 0.8rem 1rem;
+            }
+            div[data-testid="stColumn"]:has(.results-anchor)
+            div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"]) {
+                flex-direction: row !important;
+                flex-wrap: wrap !important;
+                gap: 0.55rem !important;
+            }
+            div[data-testid="stColumn"]:has(.results-anchor)
+            div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"])
+            > div[data-testid="stColumn"] {
+                flex: 1 1 calc(50% - 0.3rem) !important;
+                min-width: calc(50% - 0.3rem) !important;
+                width: auto !important;
+            }
+            div[data-testid="stColumn"]:has(.results-anchor)
+            div[data-testid="stHorizontalBlock"]:has([data-testid="stMetric"])
+            > div[data-testid="stColumn"]:last-child {
+                flex-basis: 100% !important;
+            }
+            [data-testid="stMetric"] {
+                min-height: 5.55rem;
+                padding: 0.65rem 0.75rem;
+            }
+            [data-testid="stMetricValue"] { font-size: 1.14rem; }
+            .section-eyebrow { margin-top: 0; }
+            .payment-hero {
+                border-radius: 1.15rem;
+                padding: 1rem;
+            }
+            .payment-hero-value { font-size: 2.55rem; }
+            .hero-plan-badge { font-size: 0.66rem; }
+            .payment-hero-facts { margin-top: 0.85rem; padding-top: 0.75rem; }
+            .strategy-callout { margin-bottom: 0.6rem; }
+            [data-testid="stVerticalBlockBorderWrapper"] { border-radius: 1.15rem !important; }
+            .chart-header { align-items: flex-start; flex-direction: column; gap: 0.25rem; }
+            .chart-legend-note { white-space: normal; }
             [data-testid="stDataFrame"] { font-size: 0.85rem; }
         }
         </style>
@@ -321,8 +578,8 @@ def loan_form() -> tuple[LoanDetails, tuple[ExtraPayment, ...]]:
 def render_results(
     loan_details: LoanDetails,
     extra_payments: tuple[ExtraPayment, ...],
-) -> None:
-    """Render concise results first, details second."""
+) -> dict[str, Any]:
+    """Render the dashboard summary and return data for the detail views."""
     results = calculate_results(loan_details, extra_payments)
     recurring_extra = sum(
         payment.amount
@@ -334,13 +591,32 @@ def render_results(
     )
     estimated_monthly = results["total_monthly"] + recurring_extra
 
-    st.subheader("Your estimate")
+    st.markdown('<span class="results-anchor"></span>', unsafe_allow_html=True)
+    st.markdown('<div class="section-eyebrow">Your estimate</div>', unsafe_allow_html=True)
     st.markdown(
         f"""
         <div class="payment-hero">
-            <div class="payment-hero-label">Estimated monthly payment</div>
-            <div class="payment-hero-value">${estimated_monthly:,.0f}</div>
-            <div class="payment-hero-note">Includes principal, interest, entered housing costs, and monthly extra principal.</div>
+            <div class="payment-hero-top">
+                <div>
+                    <div class="payment-hero-label">Estimated monthly payment</div>
+                    <div class="payment-hero-value">${estimated_monthly:,.0f}<span>/ month</span></div>
+                </div>
+                <div class="hero-plan-badge">{loan_details.loan_term_years}-year plan</div>
+            </div>
+            <div class="payment-hero-facts">
+                <div>
+                    <span class="hero-fact-label">Loan amount</span>
+                    <span class="hero-fact-value">${loan_details.loan_amount:,.0f}</span>
+                </div>
+                <div>
+                    <span class="hero-fact-label">Interest rate</span>
+                    <span class="hero-fact-value">{loan_details.interest_rate:g}%</span>
+                </div>
+                <div>
+                    <span class="hero-fact-label">Extra principal</span>
+                    <span class="hero-fact-value">${recurring_extra:,.0f}/mo</span>
+                </div>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -357,15 +633,38 @@ def render_results(
     if results["interest_saved"] > 0.01:
         years, remaining_months = divmod(results["months_saved"], 12)
         time_saved = f"{years} yr {remaining_months} mo" if years else f"{remaining_months} mo"
-        st.success(
-            f"This strategy saves **${results['interest_saved']:,.0f}** in interest "
-            f"and pays off the loan **{time_saved} earlier**."
+        st.markdown(
+            f"""
+            <div class="strategy-callout">
+                <div class="strategy-callout-icon">&#8593;</div>
+                <div>
+                    <strong>Your strategy saves ${results['interest_saved']:,.0f}</strong>
+                    <span>Mortgage-free {time_saved} earlier &middot;
+                    {results['original_payoff'].strftime('%b %Y')} &rarr;
+                    {results['selected_payoff'].strftime('%b %Y')}</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
         save_one, save_two = st.columns(2, gap="small")
         with save_one:
             st.metric("Interest saved", f"${results['interest_saved']:,.0f}", border=True)
         with save_two:
             st.metric("Time saved", time_saved, border=True)
+    else:
+        st.markdown(
+            """
+            <div class="strategy-callout">
+                <div class="strategy-callout-icon">+</div>
+                <div>
+                    <strong>See how much sooner you could be mortgage-free</strong>
+                    <span>Add monthly, biweekly, or one-time principal to compare payoff strategies.</span>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     with st.expander("Monthly payment breakdown", expanded=False):
         breakdown = {
@@ -381,50 +680,85 @@ def render_results(
             left.write(label)
             right.markdown(f"**${amount:,.0f}**")
 
-    render_balance_chart(results, bool(extra_payments))
-    render_schedule(results["selected_schedule"])
+    return results
 
 
 def render_balance_chart(results: dict[str, Any], has_extra_payments: bool) -> None:
-    """Render a compact responsive payoff chart."""
-    st.subheader("Balance over time")
-    original = results["original_schedule"]
-    selected = results["selected_schedule"]
-    figure = go.Figure()
-    figure.add_trace(
-        go.Scatter(
-            x=original["date"],
-            y=original["ending_balance"],
-            mode="lines",
-            name="Original",
-            line={"color": "#94a3b8", "dash": "dash", "width": 2},
-            hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra>Original</extra>",
+    """Render the responsive payoff chart inside a dashboard card."""
+    with st.container(border=True):
+        legend_note = "Teal: your strategy · Dashed: original plan" if has_extra_payments else "Your projected loan balance"
+        st.markdown(
+            f"""
+            <div class="chart-header">
+                <div>
+                    <div class="chart-title">Balance over time</div>
+                    <div class="chart-subtitle">See how principal payments change your path to $0.</div>
+                </div>
+                <div class="chart-legend-note">{legend_note}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-    )
-    if has_extra_payments:
+        original = results["original_schedule"]
+        selected = results["selected_schedule"]
+        figure = go.Figure()
         figure.add_trace(
             go.Scatter(
-                x=selected["date"],
-                y=selected["ending_balance"],
+                x=original["date"],
+                y=original["ending_balance"],
                 mode="lines",
-                name="Your strategy",
-                line={"color": "#0f766e", "width": 3},
-                hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra>Your strategy</extra>",
+                name="Original plan" if has_extra_payments else "Your plan",
+                line={
+                    "color": "#9aabba" if has_extra_payments else "#0b7a70",
+                    "dash": "dash" if has_extra_payments else "solid",
+                    "width": 2 if has_extra_payments else 3,
+                },
+                fill="tozeroy" if not has_extra_payments else None,
+                fillcolor="rgba(11, 122, 112, 0.10)" if not has_extra_payments else None,
+                hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra></extra>",
             )
         )
-    figure.update_layout(
-        height=330,
-        margin={"l": 8, "r": 8, "t": 18, "b": 8},
-        hovermode="x unified",
-        legend={"orientation": "h", "y": 1.08, "x": 0},
-        xaxis={"title": None, "showgrid": False},
-        yaxis={"title": None, "tickformat": "$~s", "rangemode": "tozero"},
-    )
-    st.plotly_chart(
-        figure,
-        width="stretch",
-        config={"displayModeBar": False, "responsive": True},
-    )
+        if has_extra_payments:
+            figure.add_trace(
+                go.Scatter(
+                    x=selected["date"],
+                    y=selected["ending_balance"],
+                    mode="lines",
+                    name="Your strategy",
+                    line={"color": "#0b7a70", "width": 3},
+                    fill="tozeroy",
+                    fillcolor="rgba(11, 122, 112, 0.10)",
+                    hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra></extra>",
+                )
+            )
+        figure.update_layout(
+            height=330,
+            margin={"l": 4, "r": 4, "t": 28, "b": 4},
+            hovermode="x unified",
+            showlegend=False,
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(0,0,0,0)",
+            font={"color": "#607084", "size": 12},
+            xaxis={
+                "title": None,
+                "showgrid": False,
+                "linecolor": "#e2e8ee",
+                "tickfont": {"color": "#718096"},
+            },
+            yaxis={
+                "title": None,
+                "tickformat": "$~s",
+                "rangemode": "tozero",
+                "gridcolor": "#e8edf1",
+                "zeroline": False,
+                "tickfont": {"color": "#718096"},
+            },
+        )
+        st.plotly_chart(
+            figure,
+            width="stretch",
+            config={"displayModeBar": False, "responsive": True},
+        )
 
 
 def render_schedule(schedule: pd.DataFrame) -> None:
@@ -470,15 +804,33 @@ def main() -> None:
         initial_sidebar_state="collapsed",
     )
     apply_styles()
-    st.markdown('<div class="app-kicker">Plan with confidence</div>', unsafe_allow_html=True)
-    st.title("Easy Mortgage Calculator")
     st.markdown(
-        '<p class="app-intro">Estimate your monthly payment and see how extra principal changes your payoff date.</p>',
+        """
+        <div class="app-header">
+            <div class="app-heading">
+                <div class="app-kicker">Plan with confidence</div>
+                <h1>Easy Mortgage Calculator</h1>
+                <p class="app-intro">Estimate your payment, compare payoff strategies, and see the long-term impact in one clear view.</p>
+            </div>
+            <div class="header-note">
+                <span class="header-note-icon">&#10003;</span>
+                Instant payoff scenarios
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
-    loan_details, extra_payments = loan_form()
-    render_results(loan_details, extra_payments)
+    input_col, results_col = st.columns([0.86, 1.14], gap="large", vertical_alignment="top")
+    with input_col:
+        st.markdown('<span class="workspace-left-marker"></span>', unsafe_allow_html=True)
+        loan_details, extra_payments = loan_form()
+    with results_col:
+        results = render_results(loan_details, extra_payments)
+
+    st.markdown("<div style='height: 0.7rem'></div>", unsafe_allow_html=True)
+    render_balance_chart(results, bool(extra_payments))
+    render_schedule(results["selected_schedule"])
     st.caption(
         "Estimate only—not financial advice. Actual payments may include costs not entered here. "
         "Confirm loan terms with your lender."
