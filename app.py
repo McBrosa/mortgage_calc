@@ -1,483 +1,488 @@
-"""
-Juniper-based Mortgage Calculator Application
-Main application interface using Juniper for interactive mortgage calculations
-"""
+"""Mobile-first Streamlit interface for the mortgage calculator."""
 
-import streamlit as st
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Any
+
 import pandas as pd
 import plotly.graph_objects as go
-import plotly.express as px
-from datetime import datetime, date
-from typing import List, Dict, Any
+import streamlit as st
 
 from mortgage_calculator import (
-    MortgageCalculator,
-    MortgageAnalyzer,
-    LoanDetails,
     ExtraPayment,
     ExtraPaymentType,
-    PaymentFrequency
+    LoanDetails,
+    MortgageCalculator,
 )
 
-# Module-level constants mapping display labels to payment types
-PAYMENT_TYPE_MONTHLY = "Extra Monthly Payment"
-PAYMENT_TYPE_BIWEEKLY = "Pay Bi-Weekly"
-PAYMENT_TYPE_ONE_TIME = "One Time Payment"
 
-PAYMENT_TYPE_MAP = {
-    PAYMENT_TYPE_MONTHLY: ExtraPaymentType.MONTHLY,
-    PAYMENT_TYPE_BIWEEKLY: ExtraPaymentType.BIWEEKLY,
-    PAYMENT_TYPE_ONE_TIME: ExtraPaymentType.ONE_TIME,
-}
+@st.cache_data(max_entries=128, show_spinner=False)
+def calculate_results(
+    loan_details: LoanDetails,
+    extra_payments: tuple[ExtraPayment, ...],
+) -> dict[str, Any]:
+    """Calculate each schedule once and reuse it across all result views."""
+    calculator = MortgageCalculator(loan_details)
+    original_schedule = calculator.generate_amortization_schedule([])
+    selected_schedule = calculator.generate_amortization_schedule(list(extra_payments))
+
+    original_interest = float(original_schedule["interest_payment"].sum())
+    selected_interest = float(selected_schedule["interest_payment"].sum())
+
+    return {
+        "monthly_pi": calculator.calculate_monthly_payment(),
+        "total_monthly": calculator.calculate_total_monthly_payment(),
+        "original_schedule": original_schedule,
+        "selected_schedule": selected_schedule,
+        "original_interest": original_interest,
+        "selected_interest": selected_interest,
+        "interest_saved": max(0.0, original_interest - selected_interest),
+        "months_saved": max(0, len(original_schedule) - len(selected_schedule)),
+        "original_payoff": original_schedule.iloc[-1]["date"],
+        "selected_payoff": selected_schedule.iloc[-1]["date"],
+    }
 
 
-class MortgageApp:
-    """Main Juniper application for mortgage calculations"""
-    
-    def __init__(self):
-        self.calculator = None
-        self.analyzer = None
-        self.loan_details = None
-        self.extra_payments = []
-    
-    def create_loan_input_form(self):
-        """Create loan details input form"""
-        st.header("📊 Mortgage Information")
+def apply_styles() -> None:
+    """Add focused responsive polish while retaining native Streamlit widgets."""
+    st.markdown(
+        """
+        <style>
+        .stMainBlockContainer {
+            max-width: 72rem;
+            padding-top: 1.35rem;
+            padding-bottom: max(3rem, env(safe-area-inset-bottom));
+        }
+        h1 {
+            letter-spacing: -0.035em;
+            line-height: 1.08 !important;
+            margin-bottom: 0.15rem !important;
+        }
+        h2, h3 { letter-spacing: -0.018em; }
+        .app-kicker {
+            color: #0f766e;
+            font-size: 0.78rem;
+            font-weight: 800;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.25rem;
+            text-transform: uppercase;
+        }
+        .app-intro {
+            color: #475569;
+            font-size: 1rem;
+            margin: 0 0 1.2rem;
+            max-width: 44rem;
+        }
+        [data-testid="stForm"] {
+            background: #ffffff;
+            border: 1px solid #dbe3ea;
+            border-radius: 1rem;
+            box-shadow: 0 0.4rem 1.4rem rgba(15, 23, 42, 0.055);
+            padding: 1.15rem 1.2rem 1.25rem;
+        }
+        [data-testid="stNumberInput"] input,
+        [data-testid="stDateInput"] input,
+        [data-testid="stSelectbox"] > div > div {
+            min-height: 44px;
+            font-size: 1rem;
+        }
+        .stButton button,
+        .stDownloadButton button,
+        [data-testid="stFormSubmitButton"] button {
+            min-height: 48px;
+            font-weight: 750;
+            touch-action: manipulation;
+        }
+        [data-testid="stExpander"] summary {
+            min-height: 48px;
+        }
+        [data-testid="stMetric"] {
+            background: #ffffff;
+            border: 1px solid #dbe3ea;
+            border-radius: 0.85rem;
+            padding: 0.8rem 0.9rem;
+        }
+        [data-testid="stMetricLabel"] p { color: #475569; }
+        [data-testid="stMetricValue"] {
+            color: #0f172a;
+            font-size: 1.5rem;
+            font-weight: 780;
+        }
+        .payment-hero {
+            background: linear-gradient(135deg, #0f766e, #115e59);
+            border-radius: 1rem;
+            color: white;
+            margin: 0.25rem 0 1rem;
+            padding: 1.15rem 1.25rem;
+            box-shadow: 0 0.55rem 1.5rem rgba(15, 118, 110, 0.18);
+        }
+        .payment-hero-label {
+            font-size: 0.85rem;
+            font-weight: 650;
+            opacity: 0.88;
+        }
+        .payment-hero-value {
+            font-size: clamp(2rem, 8vw, 3rem);
+            font-weight: 820;
+            letter-spacing: -0.04em;
+            line-height: 1.08;
+            margin: 0.2rem 0;
+        }
+        .payment-hero-note {
+            font-size: 0.82rem;
+            opacity: 0.82;
+        }
+        div[data-testid="stPlotlyChart"] { overflow: hidden; }
 
-        # Primary loan inputs rendered full-width to prevent value truncation in narrow sidebar
-        loan_amount = st.number_input(
-            "Loan Amount ($)",
-            min_value=1000.0,
-            max_value=10000000.0,
-            value=100000.0,
-            step=1000.0,
-            help="The total amount of the mortgage loan",
-            label_visibility="visible",
-            key="loan_amount"
-        )
+        @media (max-width: 640px) {
+            .stMainBlockContainer {
+                padding-left: 0.85rem;
+                padding-right: 0.85rem;
+                padding-top: 0.75rem;
+            }
+            h1 { font-size: 2rem !important; }
+            h2 { font-size: 1.4rem !important; }
+            h3 { font-size: 1.1rem !important; }
+            .app-intro { font-size: 0.94rem; margin-bottom: 0.9rem; }
+            [data-testid="stForm"] {
+                border-radius: 0.85rem;
+                padding: 0.85rem 0.8rem 1rem;
+            }
+            [data-testid="stMetric"] { padding: 0.7rem 0.8rem; }
+            [data-testid="stMetricValue"] { font-size: 1.3rem; }
+            .payment-hero { padding: 1rem; }
+            [data-testid="stDataFrame"] { font-size: 0.85rem; }
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
-        interest_rate = st.number_input(
-            "Interest Rate (%)",
-            min_value=0.0,
-            max_value=20.0,
-            value=0.0,
-            step=0.01,
-            help="Annual interest rate as a percentage",
-            label_visibility="visible",
-            key="interest_rate"
-        )
 
-        loan_term = st.selectbox(
-            "Loan Term (years)",
-            options=[10, 15, 20, 25, 30],
-            index=4,  # Default to 30 years
-            help="The length of the loan in years",
-            label_visibility="visible",
-            key="loan_term"
-        )
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            start_month = st.selectbox(
-                "Start Month",
-                options=list(range(1, 13)),
-                index=0,  # January
-                format_func=lambda x: datetime(2000, x, 1).strftime("%B"),
-                label_visibility="visible",
-                key="start_month"
+def loan_form() -> tuple[LoanDetails, tuple[ExtraPayment, ...]]:
+    """Render one mobile-friendly form and return normalized calculator inputs."""
+    with st.form("mortgage_inputs", border=True):
+        st.subheader("Loan details")
+        amount_col, rate_col = st.columns(2, gap="medium")
+        with amount_col:
+            loan_amount = st.number_input(
+                "Loan amount",
+                min_value=1_000.0,
+                max_value=10_000_000.0,
+                value=300_000.0,
+                step=5_000.0,
+                format="%.0f",
+                help="Amount borrowed, excluding your down payment.",
+            )
+        with rate_col:
+            interest_rate = st.number_input(
+                "Interest rate",
+                min_value=0.0,
+                max_value=20.0,
+                value=6.5,
+                step=0.125,
+                format="%.3f",
+                help="Annual percentage rate for this estimate.",
             )
 
-        with col2:
-            start_year = st.number_input(
-                "Start Year",
-                min_value=2020,
-                max_value=2050,
-                value=2026,
-                step=1,
-                label_visibility="visible",
-                key="start_year"
+        term_col, date_col = st.columns(2, gap="medium")
+        with term_col:
+            loan_term = st.selectbox(
+                "Loan term",
+                options=[10, 15, 20, 25, 30],
+                index=4,
+                format_func=lambda years: f"{years} years",
+            )
+        with date_col:
+            start_date = st.date_input(
+                "First payment month",
+                value=date.today().replace(day=1),
+                min_value=date(2020, 1, 1),
+                max_value=date(2050, 12, 1),
+                format="MM/DD/YYYY",
             )
 
-        # Optional fields
-        st.subheader("Optional Monthly Costs")
-        annual_taxes = st.number_input("Annual Property Taxes ($)", min_value=0.0, value=0.0, step=100.0, label_visibility="visible", key="annual_taxes")
-        home_insurance = st.number_input("Annual Home Insurance ($)", min_value=0.0, value=0.0, step=100.0, label_visibility="visible", key="home_insurance")
-        hoa_dues = st.number_input("Monthly HOA Dues ($)", min_value=0.0, value=0.0, step=10.0, label_visibility="visible", key="hoa_dues")
-        pmi = st.number_input("Monthly PMI ($)", min_value=0.0, value=0.0, step=10.0, label_visibility="visible", key="pmi")
-        
-        start_date = datetime(start_year, start_month, 1)
-
-        # Defensive interest rate check (widget bounds already enforce 0–20)
-        if not (0 <= interest_rate <= 20):
-            st.error("Interest rate must be between 0% and 20%, inclusive.")
-            return None
-
-        self.loan_details = LoanDetails(
-            loan_amount=loan_amount,
-            interest_rate=interest_rate,
-            loan_term_years=loan_term,
-            start_date=start_date,
-            annual_taxes=annual_taxes,
-            home_insurance=home_insurance,
-            hoa_dues=hoa_dues * 12,  # Convert to annual
-            pmi=pmi * 12  # Convert to annual
-        )
-        
-        return self.loan_details
-    
-    def create_extra_payment_form(self):
-        """Create extra payment configuration form"""
-        st.header("💰 Extra Payment Information")
-        
-        # Payment type selection
-        payment_type = st.selectbox(
-            "Extra Payment Type",
-            options=["Extra Monthly Payment", "Pay Bi-Weekly", "One Time Payment"],
-            help="Choose how you want to make extra payments",
-            label_visibility="visible",
-            key="payment_type"
-        )
-
-        extra_payments = []
-
-        if payment_type == PAYMENT_TYPE_MONTHLY:
-            amount = st.number_input(
-                "Extra Monthly Amount ($)",
+        st.subheader("Payoff strategy")
+        monthly_col, biweekly_col = st.columns(2, gap="medium")
+        with monthly_col:
+            extra_monthly = st.number_input(
+                "Extra principal each month",
                 min_value=0.0,
                 value=0.0,
                 step=50.0,
-                label_visibility="visible",
-                key="extra_monthly"
+                format="%.0f",
+                help="Added directly to principal every month.",
             )
-            if amount > 0:
-                extra_payments.append(ExtraPayment(
-                    payment_type=ExtraPaymentType.MONTHLY,
-                    amount=amount
-                ))
-
-        elif payment_type == PAYMENT_TYPE_BIWEEKLY:
-            st.info("Bi-weekly payments: Pay half your monthly payment every two weeks (26 payments/year)")
-            enable_biweekly = st.checkbox("Enable bi-weekly payments", key="enable_biweekly")
-            if enable_biweekly and self.loan_details:
-                monthly_payment = MortgageCalculator(self.loan_details).calculate_monthly_payment()
-                biweekly_amount = monthly_payment
-                st.write(f"Bi-weekly equivalent extra per month: ${biweekly_amount / 12:.2f}")
-                extra_payments.append(ExtraPayment(
-                    payment_type=ExtraPaymentType.BIWEEKLY,
-                    amount=biweekly_amount
-                ))
-
-        elif payment_type == PAYMENT_TYPE_ONE_TIME:
-            amount = st.number_input(
-                "One-time Payment Amount ($)",
-                min_value=0.0,
-                value=0.0,
-                step=100.0,
-                label_visibility="visible",
-                key="one_time_amount"
+        with biweekly_col:
+            use_biweekly = st.toggle(
+                "Use biweekly payments",
+                value=False,
+                help="Models 26 half-payments yearly, equal to one extra monthly payment per year.",
             )
-            payment_date = st.date_input(
-                "Payment Date",
-                value=date.today(),
-                key="one_time_date",
-                label_visibility="visible"
-            )
-            # Normalize to first of the month (schedule is monthly)
-            payment_date_normalized = payment_date.replace(day=1)
-            st.caption("Applied on the 1st of the selected month")
 
-            if amount > 0:
-                # Guard: one-time date must be on/after loan start
-                loan_start = self.loan_details.start_date.date() if self.loan_details else None
-                if loan_start and payment_date_normalized < loan_start.replace(day=1):
-                    st.error("One-time payment date must be on or after the loan start date.")
-                else:
-                    extra_payments.append(ExtraPayment(
-                        payment_type=ExtraPaymentType.ONE_TIME,
-                        amount=amount,
-                        start_date=datetime.combine(payment_date_normalized, datetime.min.time())
-                    ))
-
-        # Allow multiple extra payment types
-        st.subheader("Combine Multiple Payment Strategies")
-        combine_payments = st.checkbox("Add additional extra payment strategy", key="combine_payments")
-
-        if combine_payments:
-            col1, col2 = st.columns(2)
-            with col1:
-                extra_monthly = st.number_input(
-                    "Additional Monthly Extra ($)",
+        with st.expander("One-time payment", expanded=False):
+            one_time_col, one_time_date_col = st.columns(2, gap="medium")
+            with one_time_col:
+                one_time_amount = st.number_input(
+                    "One-time principal payment",
                     min_value=0.0,
                     value=0.0,
-                    step=50.0,
-                    label_visibility="visible",
-                    key="combine_extra_monthly"
+                    step=500.0,
+                    format="%.0f",
                 )
-                if extra_monthly > 0:
-                    extra_payments.append(ExtraPayment(
-                        payment_type=ExtraPaymentType.MONTHLY,
-                        amount=extra_monthly
-                    ))
+            with one_time_date_col:
+                one_time_date = st.date_input(
+                    "Payment month",
+                    value=date.today().replace(day=1),
+                    min_value=date(2020, 1, 1),
+                    max_value=date(2050, 12, 1),
+                    format="MM/DD/YYYY",
+                    key="one_time_date",
+                )
 
-            with col2:
-                one_time_extra = st.number_input(
-                    "Additional One-time Payment ($)",
+        with st.expander("Taxes, insurance & HOA", expanded=False):
+            tax_col, insurance_col = st.columns(2, gap="medium")
+            with tax_col:
+                annual_taxes = st.number_input(
+                    "Annual property taxes",
                     min_value=0.0,
                     value=0.0,
                     step=100.0,
-                    label_visibility="visible",
-                    key="combine_one_time_amount"
+                    format="%.0f",
                 )
-                if one_time_extra > 0:
-                    one_time_date = st.date_input(
-                        "Additional Payment Date",
-                        value=date.today(),
-                        key="extra_date",
-                        label_visibility="visible"
-                    )
-                    one_time_date_normalized = one_time_date.replace(day=1)
-                    st.caption("Applied on the 1st of the selected month")
-                    loan_start = self.loan_details.start_date.date() if self.loan_details else None
-                    if loan_start and one_time_date_normalized < loan_start.replace(day=1):
-                        st.error("Additional payment date must be on or after the loan start date.")
-                    else:
-                        extra_payments.append(ExtraPayment(
-                            payment_type=ExtraPaymentType.ONE_TIME,
-                            amount=one_time_extra,
-                            start_date=datetime.combine(one_time_date_normalized, datetime.min.time())
-                        ))
-        
-        self.extra_payments = extra_payments
-        return extra_payments
-    
-    def display_results(self):
-        """Display calculation results"""
-        if not self.loan_details:
-            return
-        
-        self.calculator = MortgageCalculator(self.loan_details)
-        self.analyzer = MortgageAnalyzer(self.calculator)
-        
-        # Calculate results
-        comparison = self.calculator.calculate_payoff_comparison(self.extra_payments)
-        original = comparison['original']
-        with_extra = comparison['with_extra']
-        
-        st.header("📈 Results")
+            with insurance_col:
+                home_insurance = st.number_input(
+                    "Annual home insurance",
+                    min_value=0.0,
+                    value=0.0,
+                    step=100.0,
+                    format="%.0f",
+                )
+            hoa_col, pmi_col = st.columns(2, gap="medium")
+            with hoa_col:
+                hoa_dues = st.number_input(
+                    "Monthly HOA dues",
+                    min_value=0.0,
+                    value=0.0,
+                    step=10.0,
+                    format="%.0f",
+                )
+            with pmi_col:
+                pmi = st.number_input(
+                    "Monthly mortgage insurance",
+                    min_value=0.0,
+                    value=0.0,
+                    step=10.0,
+                    format="%.0f",
+                )
 
-        if with_extra.interest_saved > 0:
-            st.success(
-                f"💰 Extra payments save **${with_extra.interest_saved:,.0f}** in interest "
-                f"and pay off the loan **{with_extra.years_saved:.1f} years** early!"
+        st.form_submit_button(
+            "Calculate payment",
+            type="primary",
+            width="stretch",
+        )
+        st.caption("Adjust values, then tap Calculate payment to update estimate.")
+
+    normalized_start = datetime.combine(start_date.replace(day=1), datetime.min.time())
+    loan_details = LoanDetails(
+        loan_amount=loan_amount,
+        interest_rate=interest_rate,
+        loan_term_years=loan_term,
+        start_date=normalized_start,
+        annual_taxes=annual_taxes,
+        home_insurance=home_insurance,
+        hoa_dues=hoa_dues * 12,
+        pmi=pmi * 12,
+    )
+
+    payments: list[ExtraPayment] = []
+    if extra_monthly > 0:
+        payments.append(ExtraPayment(ExtraPaymentType.MONTHLY, extra_monthly))
+    if use_biweekly:
+        monthly_pi = MortgageCalculator(loan_details).calculate_monthly_payment()
+        payments.append(ExtraPayment(ExtraPaymentType.BIWEEKLY, monthly_pi))
+    if one_time_amount > 0:
+        normalized_one_time = one_time_date.replace(day=1)
+        if normalized_one_time < start_date.replace(day=1):
+            st.warning("One-time payment must be on or after first payment month; it was not applied.")
+        else:
+            payments.append(
+                ExtraPayment(
+                    ExtraPaymentType.ONE_TIME,
+                    one_time_amount,
+                    datetime.combine(normalized_one_time, datetime.min.time()),
+                )
             )
 
-        # Results summary
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.subheader("Original Loan")
-            st.metric("Monthly P&I Payment", f"${original.monthly_payment:.2f}")
-            st.metric("Total Interest", f"${original.total_interest:,.2f}")
-            st.metric("Payoff Date", original.payoff_date.strftime("%b %Y"))
-        
-        with col2:
-            st.subheader("With Extra Payments")
-            st.metric("Monthly P&I Payment", f"${with_extra.monthly_payment:.2f}")
-            st.metric("Total Interest", f"${with_extra.total_interest:,.2f}")
-            st.metric("New Payoff Date", with_extra.payoff_date.strftime("%b %Y"))
-            
-            if with_extra.years_saved > 0:
-                st.metric("Time Saved", f"{with_extra.years_saved:.1f} years", delta=f"-{with_extra.years_saved:.1f}")
-                st.metric("Interest Saved", f"${with_extra.interest_saved:,.2f}", delta=f"-{with_extra.interest_saved:,.2f}")
-        
-        # Check for overpayment truncation in the extra-payment scenario
-        if self.extra_payments:
-            extra_schedule = self.calculator.generate_amortization_schedule(self.extra_payments)
-            if 'unused_extra' in extra_schedule.columns:
-                total_unused = extra_schedule['unused_extra'].sum()
-                if total_unused > 0.01:
-                    st.info(
-                        f"Note: Your extra payment exceeded the remaining balance in the payoff month. "
-                        f"${total_unused:,.2f} of the extra payment was not applied."
-                    )
+    return loan_details, tuple(payments)
 
-        # Additional payment info
-        total_monthly = self.calculator.calculate_total_monthly_payment()
-        extra_amount = sum(ep.amount for ep in self.extra_payments if ep.payment_type == ExtraPaymentType.MONTHLY)
 
-        st.subheader("Payment Details")
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Base Monthly Payment", f"${original.monthly_payment:.2f}")
-        with col2:
-            st.metric("Extra Monthly Payment", f"${extra_amount:.2f}")
-        with col3:
-            st.metric("Total Monthly Payment", f"${total_monthly + extra_amount:.2f}")
-    
-    def create_balance_chart(self):
-        """Create mortgage balance over time chart"""
-        if not self.calculator:
-            return
-        
-        st.header("📊 Mortgage Balance Over Time")
-        
-        # Get balance data for both scenarios
-        original_balance = self.analyzer.get_balance_over_time([])
-        extra_balance = self.analyzer.get_balance_over_time(self.extra_payments)
-        
-        # Create plotly chart
-        fig = go.Figure()
-        
-        # Original scenario
-        fig.add_trace(go.Scatter(
-            x=original_balance['date'],
-            y=original_balance['ending_balance'],
-            mode='lines',
-            name='Original',
-            line=dict(color='blue', dash='dash', width=2),
-            hovertemplate='<b>Original</b><br>Date: %{x}<br>Balance: $%{y:,.2f}<extra></extra>'
-        ))
-        
-        # Extra payment scenario
-        if self.extra_payments:
-            fig.add_trace(go.Scatter(
-                x=extra_balance['date'],
-                y=extra_balance['ending_balance'],
-                mode='lines',
-                name='With Extra Payments',
-                line=dict(color='green', width=3),
-                hovertemplate='<b>With Extra Payments</b><br>Date: %{x}<br>Balance: $%{y:,.2f}<extra></extra>'
-            ))
-        
-        # Update layout
-        fig.update_layout(
-            title='Mortgage Balance Over Time',
-            xaxis_title='Date',
-            yaxis_title='Mortgage Balance ($)',
-            hovermode='x unified',
-            legend=dict(
-                yanchor="top",
-                y=0.99,
-                xanchor="left",
-                x=0.01
-            ),
-            height=500
+def render_results(
+    loan_details: LoanDetails,
+    extra_payments: tuple[ExtraPayment, ...],
+) -> None:
+    """Render concise results first, details second."""
+    results = calculate_results(loan_details, extra_payments)
+    recurring_extra = sum(
+        payment.amount
+        if payment.payment_type is ExtraPaymentType.MONTHLY
+        else payment.amount / 12
+        if payment.payment_type is ExtraPaymentType.BIWEEKLY
+        else 0.0
+        for payment in extra_payments
+    )
+    estimated_monthly = results["total_monthly"] + recurring_extra
+
+    st.subheader("Your estimate")
+    st.markdown(
+        f"""
+        <div class="payment-hero">
+            <div class="payment-hero-label">Estimated monthly payment</div>
+            <div class="payment-hero-value">${estimated_monthly:,.0f}</div>
+            <div class="payment-hero-note">Includes principal, interest, entered housing costs, and monthly extra principal.</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    metric_one, metric_two, metric_three = st.columns(3, gap="small")
+    with metric_one:
+        st.metric("Principal & interest", f"${results['monthly_pi']:,.0f}", border=True)
+    with metric_two:
+        st.metric("Total interest", f"${results['selected_interest']:,.0f}", border=True)
+    with metric_three:
+        st.metric("Payoff month", results["selected_payoff"].strftime("%b %Y"), border=True)
+
+    if results["interest_saved"] > 0.01:
+        years, remaining_months = divmod(results["months_saved"], 12)
+        time_saved = f"{years} yr {remaining_months} mo" if years else f"{remaining_months} mo"
+        st.success(
+            f"This strategy saves **${results['interest_saved']:,.0f}** in interest "
+            f"and pays off the loan **{time_saved} earlier**."
         )
-        
-        # Format y-axis as currency
-        fig.update_yaxes(tickformat='$,.0f')
-        
-        st.plotly_chart(fig, use_container_width=True)
-    
-    def create_amortization_table(self):
-        """Create detailed amortization table"""
-        if not self.calculator:
-            return
-        
-        st.header("📋 Amortization Schedule")
-        
-        # Generate schedule
-        schedule = self.calculator.generate_amortization_schedule(self.extra_payments)
-        
-        # Format for display
-        display_schedule = schedule.copy()
-        display_schedule['date'] = display_schedule['date'].dt.strftime('%Y-%m')
-        display_schedule['beginning_balance'] = display_schedule['beginning_balance'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['monthly_payment'] = display_schedule['monthly_payment'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['principal_payment'] = display_schedule['principal_payment'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['interest_payment'] = display_schedule['interest_payment'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['extra_payment'] = display_schedule['extra_payment'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['total_payment'] = display_schedule['total_payment'].apply(lambda x: f"${x:,.2f}")
-        display_schedule['ending_balance'] = display_schedule['ending_balance'].apply(lambda x: f"${x:,.2f}")
-        
-        # Rename columns for display
-        display_schedule = display_schedule.rename(columns={
-            'payment_number': 'Payment #',
-            'date': 'Date',
-            'beginning_balance': 'Beginning Balance',
-            'monthly_payment': 'Monthly Payment',
-            'principal_payment': 'Principal',
-            'interest_payment': 'Interest',
-            'extra_payment': 'Extra Payment',
-            'total_payment': 'Total Payment',
-            'ending_balance': 'Ending Balance'
-        })
-        
-        # Show first 12 months by default, with option to show all
-        show_all = st.checkbox("Show complete schedule", value=False)
-        
-        if show_all:
-            st.dataframe(display_schedule, use_container_width=True)
-        else:
-            st.dataframe(display_schedule.head(12), use_container_width=True)
-            st.info(f"Showing first 12 payments. Total payments: {len(display_schedule)}")
-    
-    def run(self):
-        """Run the main application"""
-        st.set_page_config(
-            page_title="Mortgage Calculator Pro",
-            page_icon="🏠",
-            layout="wide",
-            initial_sidebar_state="expanded"
+        save_one, save_two = st.columns(2, gap="small")
+        with save_one:
+            st.metric("Interest saved", f"${results['interest_saved']:,.0f}", border=True)
+        with save_two:
+            st.metric("Time saved", time_saved, border=True)
+
+    with st.expander("Monthly payment breakdown", expanded=False):
+        breakdown = {
+            "Principal & interest": results["monthly_pi"],
+            "Property taxes": loan_details.annual_taxes / 12,
+            "Home insurance": loan_details.home_insurance / 12,
+            "HOA dues": loan_details.hoa_dues / 12,
+            "Mortgage insurance": loan_details.pmi / 12,
+            "Average extra principal": recurring_extra,
+        }
+        for label, amount in breakdown.items():
+            left, right = st.columns([3, 1], gap="small")
+            left.write(label)
+            right.markdown(f"**${amount:,.0f}**")
+
+    render_balance_chart(results, bool(extra_payments))
+    render_schedule(results["selected_schedule"])
+
+
+def render_balance_chart(results: dict[str, Any], has_extra_payments: bool) -> None:
+    """Render a compact responsive payoff chart."""
+    st.subheader("Balance over time")
+    original = results["original_schedule"]
+    selected = results["selected_schedule"]
+    figure = go.Figure()
+    figure.add_trace(
+        go.Scatter(
+            x=original["date"],
+            y=original["ending_balance"],
+            mode="lines",
+            name="Original",
+            line={"color": "#94a3b8", "dash": "dash", "width": 2},
+            hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra>Original</extra>",
+        )
+    )
+    if has_extra_payments:
+        figure.add_trace(
+            go.Scatter(
+                x=selected["date"],
+                y=selected["ending_balance"],
+                mode="lines",
+                name="Your strategy",
+                line={"color": "#0f766e", "width": 3},
+                hovertemplate="%{x|%b %Y}<br>$%{y:,.0f}<extra>Your strategy</extra>",
+            )
+        )
+    figure.update_layout(
+        height=330,
+        margin={"l": 8, "r": 8, "t": 18, "b": 8},
+        hovermode="x unified",
+        legend={"orientation": "h", "y": 1.08, "x": 0},
+        xaxis={"title": None, "showgrid": False},
+        yaxis={"title": None, "tickformat": "$~s", "rangemode": "tozero"},
+    )
+    st.plotly_chart(
+        figure,
+        width="stretch",
+        config={"displayModeBar": False, "responsive": True},
+    )
+
+
+def render_schedule(schedule: pd.DataFrame) -> None:
+    """Keep dense amortization detail available without dominating mobile UI."""
+    with st.expander("Amortization schedule", expanded=False):
+        show_full_schedule = st.toggle("Show full schedule", value=False)
+        visible_schedule = schedule if show_full_schedule else schedule.head(12)
+        display = visible_schedule[
+            ["date", "principal_payment", "interest_payment", "extra_payment", "ending_balance"]
+        ].copy()
+        display.columns = ["Month", "Principal", "Interest", "Extra", "Balance"]
+        st.dataframe(
+            display,
+            width="stretch",
+            hide_index=True,
+            height=420 if show_full_schedule else "auto",
+            column_config={
+                "Month": st.column_config.DateColumn("Month", format="MMM YYYY"),
+                "Principal": st.column_config.NumberColumn("Principal", format="dollar"),
+                "Interest": st.column_config.NumberColumn("Interest", format="dollar"),
+                "Extra": st.column_config.NumberColumn("Extra", format="dollar"),
+                "Balance": st.column_config.NumberColumn("Balance", format="dollar"),
+            },
+        )
+        if not show_full_schedule:
+            st.caption(f"First 12 of {len(schedule):,} payments shown.")
+
+        csv_data = schedule.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            "Download complete schedule (CSV)",
+            data=csv_data,
+            file_name="mortgage-amortization.csv",
+            mime="text/csv",
+            width="stretch",
         )
 
-        st.markdown("""
-        <style>
-        [data-testid="stMetric"] {
-            background-color: #f8f9fa;
-            color: #1a1a1a;
-            border-radius: 8px;
-            padding: 12px;
-            border-left: 4px solid #0066cc;
-        }
-        [data-testid="stMetricLabel"],
-        [data-testid="stMetricLabel"] p {
-            color: #333 !important;
-        }
-        [data-testid="stMetricValue"] {
-            font-size: 1.4rem !important;
-            font-weight: 700 !important;
-            color: #0a0a0a !important;
-        }
-        [data-testid="stMetricDelta"] {
-            color: #0a7d33 !important;
-        }
-        .stSuccess { border-radius: 8px; }
-        </style>
-        """, unsafe_allow_html=True)
 
-        st.title("🏠 Mortgage Calculator Pro")
-        st.markdown("**Early Payoff Calculator & Amortization Schedule Generator**")
-        
-        # Sidebar for inputs
-        with st.sidebar:
-            st.header("Loan Configuration")
-            self.create_loan_input_form()
-            st.divider()
-            self.create_extra_payment_form()
-        
-        # Main content area
-        if self.loan_details:
-            # Results display
-            self.display_results()
-            st.divider()
-            
-            # Chart
-            self.create_balance_chart()
-            st.divider()
-            
-            # Amortization table
-            self.create_amortization_table()
-        
-        else:
-            st.info("👈 Please configure your loan details in the sidebar to get started.")
+def main() -> None:
+    st.set_page_config(
+        page_title="Easy Mortgage Calculator",
+        page_icon="🏠",
+        layout="wide",
+        initial_sidebar_state="collapsed",
+    )
+    apply_styles()
+    st.markdown('<div class="app-kicker">Plan with confidence</div>', unsafe_allow_html=True)
+    st.title("Easy Mortgage Calculator")
+    st.markdown(
+        '<p class="app-intro">Estimate your monthly payment and see how extra principal changes your payoff date.</p>',
+        unsafe_allow_html=True,
+    )
 
-
-def main():
-    """Main application entry point"""
-    app = MortgageApp()
-    app.run()
+    loan_details, extra_payments = loan_form()
+    render_results(loan_details, extra_payments)
+    st.caption(
+        "Estimate only—not financial advice. Actual payments may include costs not entered here. "
+        "Confirm loan terms with your lender."
+    )
 
 
 if __name__ == "__main__":
